@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stammering Assistant - Visual Feedback</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #000;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+        }
+
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            transform: scaleX(-1);
+        }
+
+        #status {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px 20px;
+            border-radius: 10px;
+            font-size: 14px;
+            z-index: 10;
+            max-width: 300px;
+        }
+
+        .status-dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #4CAF50;
+            margin-right: 8px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        #alert-panel {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 87, 34, 0.95);
+            color: white;
+            padding: 40px 50px;
+            border-radius: 20px;
+            text-align: center;
+            display: none;
+            z-index: 20;
+            border: 3px solid #ff5722;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            max-width: 500px;
+        }
+
+        #alert-panel.show {
+            display: block;
+            animation: scaleIn 0.3s ease;
+        }
+
+        @keyframes scaleIn {
+            from {
+                transform: translate(-50%, -50%) scale(0.8);
+                opacity: 0;
+            }
+
+            to {
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 1;
+            }
+        }
+
+        #alert-panel h2 {
+            font-size: 2em;
+            margin-bottom: 20px;
+        }
+
+        #alert-panel .message {
+            font-size: 1.2em;
+            line-height: 1.6;
+            margin-bottom: 10px;
+        }
+
+        #alert-panel .word-highlight {
+            background: #ffeb3b;
+            color: #000;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-weight: bold;
+            font-size: 1.3em;
+        }
+
+        #breathing-guide {
+            position: absolute;
+            top: 50%;
+            right: 50px;
+            transform: translateY(-50%);
+            display: none;
+            z-index: 15;
+        }
+
+        #breathing-guide.active {
+            display: block;
+            animation: fadeIn 0.5s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        .breath-circle {
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            background: rgba(33, 150, 243, 0.3);
+            border: 5px solid #2196F3;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5em;
+            font-weight: bold;
+            color: white;
+            transition: all 4s ease-in-out;
+            box-shadow: 0 0 30px rgba(33, 150, 243, 0.5);
+        }
+
+        .breath-circle.inhale {
+            transform: scale(1.3);
+            background: rgba(76, 175, 80, 0.4);
+            border-color: #4CAF50;
+            box-shadow: 0 0 40px rgba(76, 175, 80, 0.6);
+        }
+
+        .breath-instruction {
+            text-align: center;
+            color: white;
+            font-size: 1.3em;
+            margin-top: 20px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+        }
+
+        #stats {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            display: flex;
+            gap: 15px;
+            z-index: 10;
+        }
+
+        .stat-card {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px 20px;
+            border-radius: 10px;
+            color: white;
+            text-align: center;
+            min-width: 100px;
+        }
+
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 0.8em;
+            opacity: 0.8;
+        }
+
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            z-index: 10;
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+        }
+
+        .btn-start {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .btn-stop {
+            background: #f44336;
+            color: white;
+        }
+
+        #transcript-panel {
+            position: absolute;
+            top: 80px;
+            left: 20px;
+            max-width: 350px;
+            max-height: 400px;
+            overflow-y: auto;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            color: white;
+            z-index: 10;
+        }
+
+        .transcript-item {
+            margin-bottom: 10px;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+            font-size: 0.9em;
+        }
+
+        .transcript-time {
+            font-size: 0.7em;
+            opacity: 0.6;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="container">
+        <video id="video" autoplay muted playsinline></video>
+        <canvas id="canvas"></canvas>
+
+        <div id="status">
+            <div><span class="status-dot"></span><span id="statusText">Loading...</span></div>
+        </div>
+
+        <div id="alert-panel">
+            <h2>🛑 STOP</h2>
+            <div class="message" id="alertMessage"></div>
+        </div>
+
+        <div id="breathing-guide">
+            <div class="breath-circle" id="breathCircle">
+                <span id="breathText">Ready</span>
+            </div>
+            <div class="breath-instruction" id="breathInstruction"></div>
+        </div>
+
+        <div id="transcript-panel"></div>
+
+        <div id="stats">
+            <div class="stat-card">
+                <div class="stat-value" id="wordsSpoken">0</div>
+                <div class="stat-label">Words</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stutterEvents">0</div>
+                <div class="stat-label">Detections</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="fluencyScore">100%</div>
+                <div class="stat-label">Fluency</div>
+            </div>
+        </div>
+
+        <div id="controls">
+            <button class="btn-start" id="startBtn">Start</button>
+            <button class="btn-stop" id="stopBtn" style="display:none;">Stop</button>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+
+    <script>
+        class StammeringAssistant {
+            constructor() {
+                this.video = document.getElementById('video');
+                this.canvas = document.getElementById('canvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.statusText = document.getElementById('statusText');
+                this.alertPanel = document.getElementById('alert-panel');
+                this.alertMessage = document.getElementById('alertMessage');
+                this.breathingGuide = document.getElementById('breathing-guide');
+                this.breathCircle = document.getElementById('breathCircle');
+                this.breathText = document.getElementById('breathText');
+                this.breathInstruction = document.getElementById('breathInstruction');
+                this.transcriptPanel = document.getElementById('transcript-panel');
+                this.startBtn = document.getElementById('startBtn');
+                this.stopBtn = document.getElementById('stopBtn');
+
+                this.wordsSpokenEl = document.getElementById('wordsSpoken');
+                this.stutterEventsEl = document.getElementById('stutterEvents');
+                this.fluencyScoreEl = document.getElementById('fluencyScore');
+
+                this.camera = null;
+                this.faceMesh = null;
+                this.recognition = null;
+                this.isRunning = false;
+
+                this.wordsSpoken = 0;
+                this.stutterEvents = 0;
+                this.lastWord = '';
+                this.mouthOpenHistory = [];
+                this.alertTimeout = null;
+
+                // Mouth landmark indices (lips)
+                this.upperLip = [61, 185, 40, 39, 37, 0, 267, 269, 270, 409, 291];
+                this.lowerLip = [146, 91, 181, 84, 17, 314, 405, 321, 375, 291];
+                this.lipOutline = [61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 409, 270, 269, 267, 0, 37, 39, 40, 185];
+
+                // Eye landmarks for blinking (Left and Right)
+                this.leftEye = [33, 160, 158, 133, 153, 144];
+                this.rightEye = [362, 385, 387, 263, 373, 380];
+
+                // Eyebrow landmarks for tension
+                this.leftEyebrow = [70, 63, 105, 66, 107];
+                this.rightEyebrow = [336, 296, 334, 293, 300];
+
+                // Tracking variables
+                this.lastSpeechTime = Date.now();
+                this.blinkHistory = [];
+                this.tensionHistory = [];
+                this.isBlocking = false;
+                this.lastBlinkAlert = 0;
+                this.lastTensionAlert = 0;
+                this.lastBlinkTime = 0;
+                this.pressedLipsFrames = 0;
+                this.openMouthFrames = 0;
+                this.finalTranscript = '';
+
+                this.init();
+            }
+
+            async init() {
+                try {
+                    this.updateStatus('Initializing...');
+
+                    await this.initFaceMesh();
+                    this.initSpeechRecognition();
+                    this.setupEventListeners();
+
+                    this.updateStatus('Ready - Click Start');
+                } catch (error) {
+                    console.error('Init error:', error);
+                    this.updateStatus('Error initializing');
+                }
+            }
+
+            setupEventListeners() {
+                this.startBtn.addEventListener('click', () => this.start());
+                this.stopBtn.addEventListener('click', () => this.stop());
+                window.addEventListener('resize', () => this.resizeCanvas());
+            }
+
+            async initFaceMesh() {
+                this.faceMesh = new FaceMesh({
+                    locateFile: (file) => {
+                        return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
+                    }
+                });
+
+                this.faceMesh.setOptions({
+                    maxNumFaces: 1,
+                    refineLandmarks: true,
+                    minDetectionConfidence: 0.5,
+                    minTrackingConfidence: 0.5
+                });
+
+                this.faceMesh.onResults(this.onFaceMeshResults.bind(this));
+            }
+
+            initSpeechRecognition() {
+                if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                    this.updateStatus('Speech recognition not supported');
+                    return;
+                }
+
+                // Setup Transcript UI
+                this.transcriptPanel.innerHTML = '';
+                this.finalSpan = document.createElement('span');
+                this.finalSpan.style.color = '#fff';
+                this.finalSpan.style.lineHeight = '1.5';
+
+                this.interimSpan = document.createElement('span');
+                this.interimSpan.style.color = '#aaa';
+                this.interimSpan.style.fontStyle = 'italic';
+
+                this.transcriptPanel.appendChild(this.finalSpan);
+                this.transcriptPanel.appendChild(this.interimSpan);
+
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                this.recognition = new SpeechRecognition();
+                this.recognition.continuous = true;
+                this.recognition.interimResults = true;
+                this.recognition.lang = 'en-US';
+
+                this.recognition.onresult = (event) => {
+                    let interimTranscript = '';
+                    let newFinalText = '';
+
+                    for (let i = event.resultIndex; i < event.results.length; ++i) {
+                        if (event.results[i].isFinal) {
+                            const text = event.results[i][0].transcript;
+                            newFinalText += ' ' + text;
+                            this.analyzeSpeech(text);
+                        } else {
+                            interimTranscript += event.results[i][0].transcript;
+                        }
+                    }
+
+                    this.lastSpeechTime = Date.now();
+                    this.updateTranscriptUI(newFinalText, interimTranscript);
+                };
+
+                this.recognition.onerror = (event) => {
+                    console.error('Speech error:', event.error);
+                };
+
+                this.recognition.onend = () => {
+                    if (this.isRunning) {
+                        // Restart immediately to minimize gaps
+                        setTimeout(() => {
+                            if (this.isRunning) this.recognition.start();
+                        }, 10);
+                    }
+                };
+            }
+
+            async start() {
+                try {
+                    this.updateStatus('Starting camera...');
+
+                    this.camera = new Camera(this.video, {
+                        onFrame: async () => {
+                            if (this.faceMesh && this.isRunning) {
+                                await this.faceMesh.send({ image: this.video });
+                            }
+                        },
+                        width: 1280,
+                        height: 720
+                    });
+
+                    await this.camera.start();
+                    this.recognition.start();
+
+                    this.isRunning = true;
+                    this.wordsSpoken = 0;
+                    this.stutterEvents = 0;
+                    this.finalTranscript = ''; // Reset final transcript on start
+                    this.updateStats();
+                    this.updateTranscriptUI(''); // Clear transcript UI
+
+                    this.resizeCanvas();
+                    this.updateStatus('Active - Speak naturally');
+
+                    this.startBtn.style.display = 'none';
+                    this.stopBtn.style.display = 'block';
+
+                } catch (error) {
+                    console.error('Start error:', error);
+                    this.updateStatus('Error: Could not access camera');
+                }
+            }
+
+            stop() {
+                this.isRunning = false;
+
+                if (this.camera) {
+                    this.camera.stop();
+                    this.camera = null;
+                }
+
+                if (this.recognition) {
+                    this.recognition.stop();
+                }
+
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                this.updateStatus('Stopped');
+                this.finalTranscript = ''; // Clear final transcript on stop
+                this.updateTranscriptUI(''); // Clear transcript UI
+
+                this.startBtn.style.display = 'block';
+                this.stopBtn.style.display = 'none';
+            }
+
+            resizeCanvas() {
+                const rect = this.video.getBoundingClientRect();
+                this.canvas.width = rect.width;
+                this.canvas.height = rect.height;
+            }
+
+            onFaceMeshResults(results) {
+                if (!this.isRunning) return;
+
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+                if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+                    const landmarks = results.multiFaceLandmarks[0];
+                    this.drawMouthLandmarks(landmarks);
+                    this.analyzeMouthMovement(landmarks);
+                }
+            }
+
+            drawMouthLandmarks(landmarks) {
+                const canvas = this.canvas;
+                const ctx = this.ctx;
+
+                // Draw lip outline
+                ctx.strokeStyle = '#00FF00';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+
+                for (let i = 0; i < this.lipOutline.length; i++) {
+                    const point = landmarks[this.lipOutline[i]];
+                    const x = point.x * canvas.width;
+                    const y = point.y * canvas.height;
+
+                    if (i === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                }
+                ctx.closePath();
+                ctx.stroke();
+
+                // Draw key landmarks
+                ctx.fillStyle = '#FF0000';
+                [...this.upperLip, ...this.lowerLip].forEach(index => {
+                    const point = landmarks[index];
+                    const x = point.x * canvas.width;
+                    const y = point.y * canvas.height;
+
+                    ctx.beginPath();
+                    ctx.arc(x, y, 3, 0, 2 * Math.PI);
+                    ctx.fill();
+                });
+
+                // Draw upper/lower lip midpoints for mouth opening calculation
+                const upperMid = landmarks[13];
+                const lowerMid = landmarks[14];
+
+                ctx.fillStyle = '#FFFF00';
+                [upperMid, lowerMid].forEach(point => {
+                    ctx.beginPath();
+                    ctx.arc(point.x * canvas.width, point.y * canvas.height, 5, 0, 2 * Math.PI);
+                    ctx.fill();
+                });
+            }
+
+            analyzeMouthMovement(landmarks) {
+                const now = Date.now();
+
+                // --- Metrics Calculation ---
+
+                // 1. Mouth Opening
+                const upperMid = landmarks[13];
+                const lowerMid = landmarks[14];
+                const mouthOpening = Math.sqrt(
+                    Math.pow(upperMid.x - lowerMid.x, 2) +
+                    Math.pow(upperMid.y - lowerMid.y, 2)
+                );
+
+                // 2. Lip Width (for grimace/pressed lips)
+                const leftCorner = landmarks[61];
+                const rightCorner = landmarks[291];
+                const lipWidth = Math.sqrt(
+                    Math.pow(leftCorner.x - rightCorner.x, 2) +
+                    Math.pow(leftCorner.y - rightCorner.y, 2)
+                );
+
+                // 3. Tension (Eyebrows)
+                const tension = this.calculateTension(landmarks);
+
+                // 4. EAR (Blinking)
+                const leftEAR = this.calculateEAR(landmarks, this.leftEye);
+                const rightEAR = this.calculateEAR(landmarks, this.rightEye);
+                const avgEAR = (leftEAR + rightEAR) / 2;
+
+
+                // --- History & Baselines ---
+
+                this.mouthOpenHistory.push(mouthOpening);
+                if (this.mouthOpenHistory.length > 30) this.mouthOpenHistory.shift();
+
+                // Lip Width Baseline
+                if (!this.lipWidthBaseline) this.lipWidthBaseline = lipWidth;
+                this.lipWidthBaseline = (this.lipWidthBaseline * 0.995) + (lipWidth * 0.005);
+
+
+                // --- Detection Logic ---
+
+                // 1. Block Detection
+                const timeSinceSpeech = now - this.lastSpeechTime;
+                const avgMouthOpen = this.mouthOpenHistory.reduce((a, b) => a + b, 0) / this.mouthOpenHistory.length;
+
+                if (timeSinceSpeech > 2000 && !this.isBlocking) { // Reduced silence check to 2s to be more responsive
+                    // Type A: Open Mouth Block (Silent Gape)
+                    // Lowered threshold to 0.05 (was 0.1)
+                    if (avgMouthOpen > 0.05) {
+                        const variance = this.calculateVariance(this.mouthOpenHistory);
+                        // Relaxed variance: Removed lower bound, increased upper bound to 0.002
+                        if (variance < 0.002) {
+                            // Require persistence
+                            this.openMouthFrames = (this.openMouthFrames || 0) + 1;
+                            if (this.openMouthFrames > 15) { // ~0.5s of sustained open mouth state
+                                this.detectPotentialBlock('open');
+                                this.openMouthFrames = 0;
+                            }
+                        } else {
+                            this.openMouthFrames = 0;
+                        }
+                    } else {
+                        this.openMouthFrames = 0;
+                    }
+
+                    // Type B: Closed Mouth Block (Lips Pressed)
+                    if (avgMouthOpen < 0.02) {
+                        // Check for struggle: Tension or Grimace
+                        // Stricter thresholds: Tension < 0.8 (20% compression), Width > 1.1 (10% wider)
+                        const isGrimacing = lipWidth > this.lipWidthBaseline * 1.1;
+                        const isTense = tension < 0.8;
+
+                        if (isGrimacing || isTense) {
+                            // Require persistence (must be detected for ~10 frames / 300ms)
+                            this.pressedLipsFrames = (this.pressedLipsFrames || 0) + 1;
+                            if (this.pressedLipsFrames > 10) {
+                                this.detectPotentialBlock('pressed');
+                                this.pressedLipsFrames = 0;
+                            }
+                        } else {
+                            this.pressedLipsFrames = 0;
+                        }
+                    }
+                } else {
+                    // Reset counters if speech is detected or not enough silence
+                    this.openMouthFrames = 0;
+                    this.pressedLipsFrames = 0;
+                }
+
+                // 2. Rapid Blinking
+                // Debounce blinks: Don't count if we just counted one < 300ms ago
+                if (avgEAR < 0.18 && (now - this.lastBlinkTime > 300)) {
+                    this.blinkHistory.push(now);
+                    this.lastBlinkTime = now;
+                }
+
+                // Clean up old blinks (> 5 seconds ago)
+                this.blinkHistory = this.blinkHistory.filter(t => now - t < 5000);
+
+                if (this.blinkHistory.length > 8 && now - this.lastBlinkAlert > 5000) {
+                    this.showAlert(`
+                        <div class="message">Rapid Blinking Detected</div>
+                        <div class="message" style="font-size: 0.9em">Secondary behavior detected. Try to relax your eyes.</div>
+                    `);
+                    this.lastBlinkAlert = now;
+                }
+
+                // 3. Facial Tension Alert
+                if (tension < 0.85 && now - this.lastTensionAlert > 5000) {
+                    this.showAlert(`
+                        <div class="message">Facial Tension Detected</div>
+                        <div class="message" style="font-size: 0.9em">Relax your forehead and jaw.</div>
+                    `);
+                    this.lastTensionAlert = now;
+                }
+            }
+
+            calculateEAR(landmarks, indices) {
+                const p1 = landmarks[indices[0]];
+                const p2 = landmarks[indices[1]];
+                const p3 = landmarks[indices[2]];
+                const p4 = landmarks[indices[3]];
+                const p5 = landmarks[indices[4]];
+                const p6 = landmarks[indices[5]];
+
+                const dist = (a, b) => Math.sqrt(Math.pow(a.x - b.x, 2) + Math.pow(a.y - b.y, 2));
+                return (dist(p2, p6) + dist(p3, p5)) / (2 * dist(p1, p4));
+            }
+
+            calculateTension(landmarks) {
+                // Distance between inner eyebrow points
+                const leftInner = landmarks[55];
+                const rightInner = landmarks[285];
+                const browDist = Math.sqrt(Math.pow(leftInner.x - rightInner.x, 2) + Math.pow(leftInner.y - rightInner.y, 2));
+
+                // Initialize baseline if needed
+                if (!this.browBaseline) {
+                    this.browBaseline = browDist;
+                    return 1.0;
+                }
+
+                // Update baseline slowly
+                this.browBaseline = (this.browBaseline * 0.99) + (browDist * 0.01);
+
+                return browDist / this.browBaseline;
+            }
+
+            calculateVariance(arr) {
+                if (arr.length === 0) return 0;
+                const mean = arr.reduce((a, b) => a + b) / arr.length;
+                const variance = arr.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / arr.length;
+                return variance;
+            }
+
+            detectPotentialBlock(type = 'open') {
+                this.isBlocking = true;
+                this.stutterEvents++;
+                this.updateStats();
+
+                let message = '';
+                if (type === 'pressed') {
+                    message = `
+                        <div class="message">Lips Pressed Detected</div>
+                        <div class="message" style="margin-top:15px;">
+                            <strong>1.</strong> Relax your lips<br>
+                            <strong>2.</strong> Open mouth slightly<br>
+                            <strong>3.</strong> Gentle breath out
+                        </div>
+                    `;
+                } else {
+                    message = `
+                        <div class="message">Block Detected</div>
+                        <div class="message" style="margin-top:15px;">
+                            <strong>1.</strong> Stop pushing<br>
+                            <strong>2.</strong> Exhale fully<br>
+                            <strong>3.</strong> Gentle onset
+                        </div>
+                    `;
+                }
+
+                this.showAlert(message);
+                setTimeout(() => { this.isBlocking = false; }, 3000);
+            }
+
+            analyzeSpeech(text) {
+                // 1. Detect Hyphenated Stuttering (e.g., "t-t-t-time")
+                // Looks for single/double letters followed by hyphens and then a word
+                const hyphenRegex = /\b([a-z]{1,2}-)+[a-z]+\b/gi;
+                const hyphenMatches = text.match(hyphenRegex);
+
+                if (hyphenMatches) {
+                    hyphenMatches.forEach(match => {
+                        // Avoid false positives like "co-op" or "re-elect" by checking if the parts are identical
+                        const parts = match.split('-');
+                        if (parts[0] === parts[1] || parts[1] === parts[2]) {
+                            this.detectStutter('repetition', match);
+                            this.stutterEvents++;
+                        }
+                    });
+                }
+
+                const words = text.toLowerCase().trim().split(/\s+/);
+                this.wordsSpoken += words.length;
+
+                // 2. Detect Word/Sound Repetitions
+                const reduplicatedWords = new Set(['tomtom', 'couscous', 'beriberi', 'bonbon', 'agarwal']); // Whitelist
+
+                for (let i = 0; i < words.length - 1; i++) {
+                    const current = words[i];
+                    const next = words[i + 1];
+
+                    // A. Whole Word Repetition (e.g., "time time")
+                    if (current === next) {
+                        // Check whitelist for "Tom Tom" -> "tomtom"
+                        if (reduplicatedWords.has(current + next)) continue;
+
+                        if (current.length > 1) { // Ignore "a a" or "I I" if desired, but usually "I I" is stutter. Keeping > 1 to avoid noise.
+                            this.detectStutter('repetition', current);
+                            this.stutterEvents++;
+                        }
+                    }
+                    // B. Part-Word Repetition / Sound Repetition (e.g., "t time", "mu mummy")
+                    // Current is short (<= 3 chars) AND Next starts with Current
+                    else if (current.length <= 3 && next.startsWith(current) && next.length > current.length) {
+                        this.detectStutter('repetition', current + '-' + next);
+                        this.stutterEvents++;
+                    }
+                }
+
+                // 3. Detect Prolongations (e.g., "sooooo")
+                words.forEach(word => {
+                    if (/(.)\1{2,}/.test(word) && word.length > 3) {
+                        this.detectStutter('prolongation', word);
+                        this.stutterEvents++;
+                    }
+                });
+
+                this.updateStats();
+            }
+
+            updateTranscriptUI(newFinal, interim) {
+                if (newFinal) {
+                    this.finalTranscript += newFinal; // Keep memory copy if needed
+                    const span = document.createElement('span');
+                    span.textContent = newFinal;
+                    this.finalSpan.appendChild(span);
+                }
+                this.interimSpan.textContent = interim;
+                this.transcriptPanel.scrollTop = this.transcriptPanel.scrollHeight;
+            }
+
+            detectStutter(type, word) {
+                let message = '';
+
+                if (type === 'repetition') {
+                    message = `
+                        <div class="message">Repetition detected: <span class="word-highlight">${word}</span></div>
+                        <div class="message" style="margin-top:15px;">
+                            <strong>1.</strong> Take a deep breath<br>
+                            <strong>2.</strong> Relax your jaw and throat<br>
+                            <strong>3.</strong> Elongate first syllable: "${this.elongateWord(word)}"<br>
+                            <strong>4.</strong> Continue slowly
+                        </div>
+                    `;
+                } else if (type === 'prolongation') {
+                    message = `
+                        <div class="message">Prolongation: <span class="word-highlight">${word}</span></div>
+                        <div class="message" style="margin-top:15px;">
+                            <strong>1.</strong> Pause and breathe<br>
+                            <strong>2.</strong> Use gentle onset<br>
+                            <strong>3.</strong> Say it slowly: "${word.split('').join('-')}"
+                        </div>
+                    `;
+                }
+
+                this.showAlert(message);
+                this.triggerBreathingExercise();
+            }
+
+            elongateWord(word) {
+                const vowelIndex = word.search(/[aeiou]/i);
+                if (vowelIndex === -1) return word;
+                return word.slice(0, vowelIndex + 1) +
+                    word[vowelIndex].repeat(2) +
+                    word.slice(vowelIndex + 1);
+            }
+
+            showAlert(message) {
+                this.alertMessage.innerHTML = message;
+                this.alertPanel.classList.add('show');
+
+                if (this.alertTimeout) clearTimeout(this.alertTimeout);
+                this.alertTimeout = setTimeout(() => {
+                    this.alertPanel.classList.remove('show');
+                }, 6000);
+            }
+
+            triggerBreathingExercise() {
+                this.breathingGuide.classList.add('active');
+
+                let count = 3;
+                this.breathText.textContent = count;
+                this.breathInstruction.textContent = 'Get ready...';
+
+                const countdown = setInterval(() => {
+                    count--;
+                    if (count > 0) {
+                        this.breathText.textContent = count;
+                    } else {
+                        clearInterval(countdown);
+                        this.doBreathCycle();
+                    }
+                }, 1000);
+            }
+
+            doBreathCycle() {
+                // Inhale
+                this.breathText.textContent = 'Inhale';
+                this.breathCircle.classList.add('inhale');
+                this.breathInstruction.textContent = 'Breathe in slowly through your nose...';
+
+                setTimeout(() => {
+                    // Exhale
+                    this.breathText.textContent = 'Exhale';
+                    this.breathCircle.classList.remove('inhale');
+                    this.breathInstruction.textContent = 'Breathe out slowly... Continue speaking';
+
+                    setTimeout(() => {
+                        this.breathText.textContent = 'Ready';
+                        this.breathInstruction.textContent = '';
+                        this.breathingGuide.classList.remove('active');
+                    }, 4000);
+                }, 4000);
+            }
+
+            addToTranscript(text) {
+                const item = document.createElement('div');
+                item.className = 'transcript-item';
+                const time = new Date().toLocaleTimeString();
+                item.innerHTML = `
+                    <div class="transcript-time">${time}</div>
+                    <div>${text}</div>
+                `;
+                this.transcriptPanel.appendChild(item);
+                this.transcriptPanel.scrollTop = this.transcriptPanel.scrollHeight;
+
+                // Keep only last 10 items
+                while (this.transcriptPanel.children.length > 10) {
+                    this.transcriptPanel.removeChild(this.transcriptPanel.firstChild);
+                }
+            }
+
+            updateStats() {
+                this.wordsSpokenEl.textContent = this.wordsSpoken;
+                this.stutterEventsEl.textContent = this.stutterEvents;
+
+                const fluency = this.wordsSpoken > 0
+                    ? Math.max(0, 100 - ((this.stutterEvents / this.wordsSpoken) * 100))
+                    : 100;
+                this.fluencyScoreEl.textContent = fluency.toFixed(0) + '%';
+            }
+
+            updateStatus(message) {
+                this.statusText.textContent = message;
+            }
+        }
+
+        window.addEventListener('load', () => {
+            new StammeringAssistant();
+        });
+    </script>
+</body>
+
+</html>
