@@ -383,6 +383,7 @@
                 this.pressedLipsFrames = 0;
                 this.openMouthFrames = 0;
                 this.finalTranscript = '';
+                this.lastStutterTime = 0;
 
                 this.init();
             }
@@ -464,6 +465,10 @@
                         }
                     }
 
+                    if (interimTranscript) {
+                        this.analyzeInterim(interimTranscript);
+                    }
+
                     this.lastSpeechTime = Date.now();
                     this.updateTranscriptUI(newFinalText, interimTranscript);
                 };
@@ -480,6 +485,76 @@
                         }, 10);
                     }
                 };
+            }
+
+            // ... start/stop methods ...
+
+            analyzeInterim(text) {
+                const words = text.toLowerCase().trim().split(/\s+/);
+                const now = Date.now();
+
+                // Debounce: Don't detect new stutter events too rapidly (e.g. while the same interim result is updating)
+                if (now - this.lastStutterTime < 800) return;
+
+                const reduplicatedWords = new Set(['tomtom', 'couscous', 'beriberi', 'bonbon', 'agarwal']);
+
+                for (let i = 0; i < words.length - 1; i++) {
+                    const current = words[i];
+                    const next = words[i + 1];
+
+                    // A. Whole Word Repetition (e.g., "time time")
+                    if (current === next) {
+                        if (reduplicatedWords.has(current + next)) continue;
+                        if (current.length > 1) {
+                            this.detectStutter('repetition', current);
+                            this.stutterEvents++;
+                            this.lastStutterTime = now;
+                            break; // Only count one event per frame to avoid spam
+                        }
+                    }
+                    // B. Part-Word Repetition (e.g., "t time")
+                    else if (current.length <= 3 && next.startsWith(current) && next.length > current.length) {
+                        this.detectStutter('repetition', current + '-' + next);
+                        this.stutterEvents++;
+                        this.lastStutterTime = now;
+                        break;
+                    }
+                }
+            }
+
+            analyzeSpeech(text) {
+                // Final speech analysis - mostly for stats and catching things missed in interim
+                const words = text.toLowerCase().trim().split(/\s+/);
+                this.wordsSpoken += words.length;
+
+                // We rely mostly on interim for repetitions now, but we keep this for prolongations 
+                // and any repetitions that actually made it to final text.
+
+                const reduplicatedWords = new Set(['tomtom', 'couscous', 'beriberi', 'bonbon', 'agarwal']);
+
+                for (let i = 0; i < words.length - 1; i++) {
+                    const current = words[i];
+                    const next = words[i + 1];
+
+                    if (current === next) {
+                        if (reduplicatedWords.has(current + next)) continue;
+                        // Only count if we didn't just flag it in interim
+                        if (Date.now() - this.lastStutterTime > 1000 && current.length > 1) {
+                            this.detectStutter('repetition', current);
+                            this.stutterEvents++;
+                        }
+                    }
+                }
+
+                // Detect Prolongations (e.g., "sooooo") - these usually survive to final text
+                words.forEach(word => {
+                    if (/(.)\1{2,}/.test(word) && word.length > 3) {
+                        this.detectStutter('prolongation', word);
+                        this.stutterEvents++;
+                    }
+                });
+
+                this.updateStats();
             }
 
             async start() {
@@ -784,66 +859,10 @@
                         </div>
                     `;
                 }
-
                 this.showAlert(message);
                 setTimeout(() => { this.isBlocking = false; }, 3000);
             }
 
-            analyzeSpeech(text) {
-                // 1. Detect Hyphenated Stuttering (e.g., "t-t-t-time")
-                // Looks for single/double letters followed by hyphens and then a word
-                const hyphenRegex = /\b([a-z]{1,2}-)+[a-z]+\b/gi;
-                const hyphenMatches = text.match(hyphenRegex);
-
-                if (hyphenMatches) {
-                    hyphenMatches.forEach(match => {
-                        // Avoid false positives like "co-op" or "re-elect" by checking if the parts are identical
-                        const parts = match.split('-');
-                        if (parts[0] === parts[1] || parts[1] === parts[2]) {
-                            this.detectStutter('repetition', match);
-                            this.stutterEvents++;
-                        }
-                    });
-                }
-
-                const words = text.toLowerCase().trim().split(/\s+/);
-                this.wordsSpoken += words.length;
-
-                // 2. Detect Word/Sound Repetitions
-                const reduplicatedWords = new Set(['tomtom', 'couscous', 'beriberi', 'bonbon', 'agarwal']); // Whitelist
-
-                for (let i = 0; i < words.length - 1; i++) {
-                    const current = words[i];
-                    const next = words[i + 1];
-
-                    // A. Whole Word Repetition (e.g., "time time")
-                    if (current === next) {
-                        // Check whitelist for "Tom Tom" -> "tomtom"
-                        if (reduplicatedWords.has(current + next)) continue;
-
-                        if (current.length > 1) { // Ignore "a a" or "I I" if desired, but usually "I I" is stutter. Keeping > 1 to avoid noise.
-                            this.detectStutter('repetition', current);
-                            this.stutterEvents++;
-                        }
-                    }
-                    // B. Part-Word Repetition / Sound Repetition (e.g., "t time", "mu mummy")
-                    // Current is short (<= 3 chars) AND Next starts with Current
-                    else if (current.length <= 3 && next.startsWith(current) && next.length > current.length) {
-                        this.detectStutter('repetition', current + '-' + next);
-                        this.stutterEvents++;
-                    }
-                }
-
-                // 3. Detect Prolongations (e.g., "sooooo")
-                words.forEach(word => {
-                    if (/(.)\1{2,}/.test(word) && word.length > 3) {
-                        this.detectStutter('prolongation', word);
-                        this.stutterEvents++;
-                    }
-                });
-
-                this.updateStats();
-            }
 
             updateTranscriptUI(newFinal, interim) {
                 if (newFinal) {
