@@ -276,144 +276,6 @@
             opacity: 0.6;
             margin-bottom: 5px;
         }
-
-        /* Interview Mode Styles */
-        #interview-setup-panel {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(33, 150, 243, 0.95);
-            color: white;
-            padding: 30px;
-            border-radius: 15px;
-            width: 90%;
-            max-width: 500px;
-            z-index: 25;
-            display: none;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-            border: 2px solid #64b5f6;
-        }
-
-        #interview-setup-panel.show {
-            display: block;
-            animation: fadeIn 0.3s ease;
-        }
-
-        /* Top Right Question HUD */
-        #interview-hud {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            width: 300px;
-            background: rgba(0, 0, 0, 0.6);
-            backdrop-filter: blur(10px);
-            padding: 20px;
-            border-radius: 15px;
-            color: white;
-            z-index: 20;
-            display: none;
-            border-left: 4px solid #2196F3;
-            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
-        }
-
-        #interview-hud.active {
-            display: block;
-            animation: slideInRight 0.5s ease;
-        }
-
-        @keyframes slideInRight {
-            from {
-                transform: translateX(100%);
-                opacity: 0;
-            }
-
-            to {
-                transform: translateX(0);
-                opacity: 1;
-            }
-        }
-
-        .hud-label {
-            font-size: 0.8em;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: #aaa;
-            margin-bottom: 10px;
-        }
-
-        .interview-question-text {
-            font-size: 1.2em;
-            font-weight: 600;
-            line-height: 1.4;
-            margin-bottom: 20px;
-        }
-
-        .interview-input {
-            width: 100%;
-            padding: 12px;
-            margin: 10px 0;
-            border-radius: 8px;
-            border: none;
-            font-size: 16px;
-        }
-
-        .interview-controls {
-            display: flex;
-            justify-content: center;
-            gap: 15px;
-            margin-top: 20px;
-        }
-
-        .hud-controls {
-            display: flex;
-            gap: 10px;
-        }
-
-        .btn-small {
-            padding: 8px 16px;
-            font-size: 0.9em;
-            flex: 1;
-        }
-
-        .btn-interview {
-            background: #2196F3;
-            color: white;
-        }
-
-        select.interview-input {
-            background: white;
-            cursor: pointer;
-        }
-
-        /* Mode Toggle */
-        #mode-switch {
-            position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.8);
-            border-radius: 30px;
-            padding: 5px;
-            display: flex;
-            z-index: 30;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-
-        .mode-option {
-            padding: 10px 25px;
-            border-radius: 25px;
-            cursor: pointer;
-            color: #aaa;
-            font-weight: bold;
-            transition: all 0.3s ease;
-        }
-
-        .mode-option.active {
-            background: #2196F3;
-            color: white;
-            box-shadow: 0 2px 10px rgba(33, 150, 243, 0.4);
-        }
     </style>
 </head>
 
@@ -439,40 +301,6 @@
         </div>
 
         <div id="transcript-panel"></div>
-
-        <!-- Mode Toggle -->
-        <div id="mode-switch">
-            <div class="mode-option active" data-mode="freestyle">Freestyle</div>
-            <div class="mode-option" data-mode="interview">Interview</div>
-        </div>
-
-        <!-- Interview Setup Modal -->
-        <div id="interview-setup-panel">
-            <h2 style="margin-bottom: 20px;">💼 Interview Setup</h2>
-            <div style="margin-bottom: 15px;">
-                <label>Job Position:</label>
-                <input type="text" id="jobPosition" class="interview-input" placeholder="e.g. Product Manager">
-            </div>
-            <div style="margin-bottom: 15px;">
-                <label>AI Model:</label>
-                <select id="modelSelect" class="interview-input">
-                    <option value="" disabled selected>Loading models...</option>
-                </select>
-            </div>
-            <div class="interview-controls">
-                <button class="btn-start" id="startInterviewBtn">Start Interview</button>
-            </div>
-        </div>
-
-        <!-- Top Right Question HUD -->
-        <div id="interview-hud">
-            <div class="hud-label">Current Question</div>
-            <div class="interview-question-text" id="questionDisplay">Loading...</div>
-            <div class="hud-controls">
-                <button class="btn-start btn-small" id="nextQuestionBtn">Next</button>
-                <button class="btn-stop btn-small" id="endInterviewBtn">End</button>
-            </div>
-        </div>
 
         <div id="stats">
             <div class="stat-card">
@@ -557,22 +385,6 @@
                 this.finalTranscript = '';
                 this.lastStutterTime = 0;
 
-                // Interview Mode
-                this.interviewSetupPanel = document.getElementById('interview-setup-panel');
-                this.interviewHUD = document.getElementById('interview-hud');
-                this.modeOptions = document.querySelectorAll('.mode-option');
-
-                this.startInterviewBtn = document.getElementById('startInterviewBtn');
-                this.nextQuestionBtn = document.getElementById('nextQuestionBtn');
-                this.endInterviewBtn = document.getElementById('endInterviewBtn');
-                this.jobPositionInput = document.getElementById('jobPosition');
-                this.modelSelect = document.getElementById('modelSelect');
-                this.questionDisplay = document.getElementById('questionDisplay');
-
-                this.interviewQuestions = [];
-                this.currentQuestionIndex = 0;
-                this.isInterviewActive = false;
-
                 this.init();
             }
 
@@ -583,7 +395,6 @@
                     await this.initFaceMesh();
                     this.initSpeechRecognition();
                     this.setupEventListeners();
-                    this.fetchOllamaModels(); // Fetch models on init
 
                     this.updateStatus('Ready - Click Start');
                 } catch (error) {
@@ -596,33 +407,6 @@
                 this.startBtn.addEventListener('click', () => this.start());
                 this.stopBtn.addEventListener('click', () => this.stop());
                 window.addEventListener('resize', () => this.resizeCanvas());
-
-                // Interview Mode Listeners
-                this.modeOptions.forEach(opt => {
-                    opt.addEventListener('click', (e) => this.switchMode(e.target.dataset.mode));
-                });
-
-                this.startInterviewBtn.addEventListener('click', () => this.startInterview());
-                this.nextQuestionBtn.addEventListener('click', () => this.nextQuestion());
-                this.endInterviewBtn.addEventListener('click', () => this.endInterview());
-            }
-
-            switchMode(mode) {
-                // Update toggle UI
-                this.modeOptions.forEach(opt => opt.classList.remove('active'));
-                document.querySelector(`.mode-option[data-mode="${mode}"]`).classList.add('active');
-
-                if (mode === 'interview') {
-                    if (this.isInterviewActive) {
-                        this.interviewHUD.classList.add('active');
-                    } else {
-                        this.interviewSetupPanel.classList.add('show');
-                    }
-                } else {
-                    // Freestyle
-                    this.interviewSetupPanel.classList.remove('show');
-                    this.interviewHUD.classList.remove('active');
-                }
             }
 
             async initFaceMesh() {
@@ -1204,124 +988,6 @@
 
             updateStatus(message) {
                 this.statusText.textContent = message;
-            }
-
-            // --- Interview Mode Methods ---
-
-            async fetchOllamaModels() {
-                try {
-                    const response = await fetch('http://localhost:11434/api/tags');
-                    const data = await response.json();
-
-                    this.modelSelect.innerHTML = '';
-                    if (data.models && data.models.length > 0) {
-                        data.models.forEach(model => {
-                            const option = document.createElement('option');
-                            option.value = model.name;
-                            option.textContent = model.name;
-                            this.modelSelect.appendChild(option);
-                        });
-                    } else {
-                        const option = document.createElement('option');
-                        option.textContent = "No models found";
-                        this.modelSelect.appendChild(option);
-                    }
-                } catch (error) {
-                    console.error('Ollama Error:', error);
-                    this.modelSelect.innerHTML = '<option>Error connecting to Ollama</option>';
-                    this.showAlert(`
-                        <div class="message">Ollama Connection Failed</div>
-                        <div class="message" style="font-size: 0.8em">Ensure 'ollama serve' is running.</div>
-                    `);
-                }
-            }
-
-            async startInterview() {
-                const position = this.jobPositionInput.value.trim();
-                const model = this.modelSelect.value;
-
-                if (!position || !model || model.includes('Error')) {
-                    alert('Please enter a position and ensure Ollama is connected.');
-                    return;
-                }
-
-                this.startInterviewBtn.textContent = 'Generating Questions...';
-                this.startInterviewBtn.disabled = true;
-
-                try {
-                    await this.generateQuestions(position, model);
-
-                    // Switch to active HUD view
-                    this.isInterviewActive = true;
-                    this.interviewSetupPanel.classList.remove('show');
-                    this.interviewHUD.classList.add('active');
-
-                    this.currentQuestionIndex = 0;
-                    this.showCurrentQuestion();
-
-                    // Auto-start camera/speech if not running
-                    if (!this.isRunning) {
-                        this.start();
-                    }
-
-                } catch (error) {
-                    console.error('Generation Error:', error);
-                    alert('Failed to generate questions. Check console.');
-                } finally {
-                    this.startInterviewBtn.textContent = 'Start Interview';
-                    this.startInterviewBtn.disabled = false;
-                }
-            }
-
-            async generateQuestions(position, model) {
-                const prompt = `Generate 5 interview questions for a ${position} position. The first question MUST be 'Tell me something about yourself?'. Return multiple questions. Format them as a simple numbered list or just one per line. Do not include any other text.`;
-
-                const response = await fetch('http://localhost:11434/api/generate', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        model: model,
-                        prompt: prompt,
-                        stream: false
-                    })
-                });
-
-                const data = await response.json();
-                const text = data.response;
-
-                // Parse questions
-                this.interviewQuestions = text.split('\n')
-                    .map(q => q.replace(/^\d+[\.\)]\s*/, '').trim())
-                    .filter(q => q.length > 10);
-
-                // Force first question if missing/malformed (fallback)
-                if (!this.interviewQuestions[0]?.includes('yourself')) {
-                    this.interviewQuestions.unshift("Tell me something about yourself?");
-                }
-            }
-
-            showCurrentQuestion() {
-                if (this.currentQuestionIndex < this.interviewQuestions.length) {
-                    this.questionDisplay.textContent = this.interviewQuestions[this.currentQuestionIndex];
-                } else {
-                    this.questionDisplay.textContent = "Interview Complete!";
-                }
-            }
-
-            nextQuestion() {
-                this.currentQuestionIndex++;
-                if (this.currentQuestionIndex < this.interviewQuestions.length) {
-                    this.showCurrentQuestion();
-                } else {
-                    this.questionDisplay.textContent = "Interview Complete! Great job.";
-                    setTimeout(() => this.endInterview(), 3000);
-                }
-            }
-
-            endInterview() {
-                this.isInterviewActive = false;
-                this.interviewHUD.classList.remove('active');
-                this.interviewSetupPanel.classList.add('show');
             }
         }
 
